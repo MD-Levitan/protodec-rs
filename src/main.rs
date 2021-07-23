@@ -1,7 +1,11 @@
 pub mod parser; 
+pub mod proto; 
 
-use parser::utils;
-use parser::field::*;
+use proto::utils;
+use proto::field::*;
+use proto::message::*;
+
+use parser::parser::SimpleParser;
 
 fn main() {
     let mut s = Int64Field::default();
@@ -34,7 +38,7 @@ fn main() {
     println!("{:?}", l.0.data);
     
     let mut z = EmbeddedField::<StringField>::default();
-    let mut k = EmbeddedField::<Int32Field>::default();
+    let mut k = EmbeddedField::<StringField>::default();
     
     z.0.data = s;
 
@@ -42,4 +46,23 @@ fn main() {
     k.deserialize(&z.serialize()).unwrap();
     println!("{:?}", k.0.data);
     
+
+    let mut x = Message::new("mak".to_string(), None);
+    x.fields.push(Box::new(k.clone()));
+    x.fields.push(Box::new(z.clone()));
+    x.fields.push(Box::new(l.clone()));
+    println!("{:?}", k.serialize());
+    println!("{:?}", z.serialize());
+    println!("{:?}", l.serialize());
+    println!("{:?}", x.serialize());
+
+    let parser = SimpleParser::new();
+
+    let (x, i) = parser.try_deserialize_specific_field(&l.serialize(), FieldType::String).unwrap();
+    let b: &StringField = match x.as_any().downcast_ref::<StringField>() {
+        Some(b) => b,
+        None => panic!("&a isn't a B!")
+    };   
+    println!("{:?}", b);
+
 }

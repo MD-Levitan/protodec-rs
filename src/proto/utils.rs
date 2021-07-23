@@ -1,4 +1,4 @@
-use crate::parser::error::Result;
+use crate::proto::error::Result;
 
 /// Serialization using Varints method
 pub fn serialize_varint(var: u64) -> Vec<u8> {

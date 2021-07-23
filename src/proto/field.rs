@@ -1,8 +1,9 @@
+use core::any::Any;
 use core::convert::From;
 use core::fmt;
 
-use crate::parser::error::{Error, ErrorType, Result};
-use crate::parser::utils::*;
+use crate::proto::error::{Error, ErrorType, Result};
+use crate::proto::utils::*;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum VariantTypeRaw {
@@ -152,6 +153,33 @@ impl From<FieldType> for VariantTypeRaw {
     }
 }
 
+impl From<FieldType> for Box<dyn FieldTrait> {
+    fn from(item: FieldType) -> Self {
+        match item {
+            FieldType::Int32 => Box::new(Int32Field::default()),
+            FieldType::Int64 => Box::new(Int64Field::default()),
+            FieldType::UInt32 => Box::new(UInt32Field::default()),
+            FieldType::UInt64 => Box::new(UInt64Field::default()),
+            FieldType::SInt32 => Box::new(SInt32Field::default()),
+            FieldType::SInt64 => Box::new(SInt64Field::default()),
+            FieldType::Bool => Box::new(BoolField::default()),
+            FieldType::Enum => Box::new(Field::default()), //Box::new(EnumField::default()),
+            FieldType::Fixed64 => Box::new(Fixed64Field::default()),
+            FieldType::SFixed64 => Box::new(SFixed64Field::default()),
+            FieldType::Double => Box::new(DoubleField::default()),
+            FieldType::Embedded => Box::new(Field::default()), //Box::new(EmbeddedField::default()),
+            FieldType::Repeated => Box::new(Field::default()), //Box::new(RepeatedField::default()),
+            FieldType::Bytes => Box::new(BytesField::default()),
+            FieldType::String => Box::new(StringField::default()),
+            FieldType::StartGroup => Box::new(Field::default()), //Box::new(StartGroupField::default()),
+            FieldType::EndGroup => Box::new(Field::default()), //Box::new(EndGroupField::default()),
+            FieldType::Fixed32 => Box::new(Fixed32Field::default()),
+            FieldType::SFixed32 => Box::new(Fixed64Field::default()),
+            FieldType::Float => Box::new(FloatField::default()),
+        }
+    }
+}
+
 /// A field rule
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum FieldLabel {
@@ -182,11 +210,23 @@ where
     pub data: T,
 }
 
+impl Default for Field<Vec<u8>> {
+    fn default() -> Self {
+        Field {
+            name: "".to_string(),
+            rule: FieldLabel::Optional,
+            type_: FieldType::Bytes,
+            number: 0,
+            data: Vec::new(),
+        }
+    }
+}
+
 pub trait FieldTrait {
     fn serialize(&self) -> Vec<u8>;
     fn serialize_into(&self, into: &mut Vec<u8>);
     fn deserialize(&mut self, into: &[u8]) -> Result<u64>;
-    //fn deserialize_into(into: &[u8]) -> Result<(Self, u64)>;
+    fn as_any(&self) -> &dyn Any;
 }
 
 impl<T> Field<T>
@@ -201,6 +241,60 @@ where
             number: number,
             data: data,
         }
+    }
+}
+
+impl FieldTrait for Field<Vec<u8>> {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+    fn serialize_into(&self, into: &mut Vec<u8>) {
+        serialize_varint_into(
+            generate_key(self.number, VariantTypeRaw::from(self.type_) as u8),
+            into,
+        );
+        serialize_varint_into(self.data.len() as u64, into);
+        into.extend_from_slice(&self.data);
+    }
+
+    fn serialize(&self) -> Vec<u8> {
+        let mut gen = Vec::new();
+        self.serialize_into(&mut gen);
+        gen
+    }
+
+    fn deserialize(&mut self, into: &[u8]) -> Result<u64> {
+        let (key, readed) = deserialize_varint(into)?;
+        let (index, type_int) = parse_key(key);
+        // Check Type if queal to `VariantTypeRaw::Buffer`
+        if type_int != VariantTypeRaw::Buffer as u8 {
+            return Err(Error::new(
+                &format!(
+                    "expected `{}` found `{}`",
+                    VariantTypeRaw::Buffer,
+                    VariantTypeRaw::from(type_int)
+                ),
+                Some(ErrorType::IncorrectType),
+            ));
+        }
+        let (size, readed_1) = deserialize_varint(&into[readed as usize..])?;
+        if into[(readed + readed_1) as usize..].len() < size as usize {
+            return Err(Error::new(
+                &format!(
+                    "expected {} bytes found `{}`",
+                    size,
+                    into[readed as usize..].len()
+                ),
+                Some(ErrorType::IncorrectData),
+            ));
+        }
+        let value =
+            into[(readed + readed_1) as usize..(readed + readed_1 + size) as usize].to_vec();
+        self.data = value;
+        self.number = index;
+        self.type_ = FieldType::Bytes;
+
+        Ok(readed + readed + readed_1 + size)
     }
 }
 
@@ -231,6 +325,10 @@ impl Default for Int32Field {
 }
 
 impl FieldTrait for Int32Field {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -302,6 +400,10 @@ impl Default for Int64Field {
 }
 
 impl FieldTrait for Int64Field {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -367,6 +469,10 @@ impl Default for UInt32Field {
 }
 
 impl FieldTrait for UInt32Field {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -413,10 +519,10 @@ impl FieldTrait for UInt32Field {
 
 /// Filed with type UInt64
 #[derive(Debug, Clone, PartialEq)]
-pub struct UInt64Field(pub Field<i64>);
+pub struct UInt64Field(pub Field<u64>);
 
 impl UInt64Field {
-    fn new(name: String, number: u64, data: i64) -> Self {
+    fn new(name: String, number: u64, data: u64) -> Self {
         Self {
             0: Field::new(name, FieldLabel::Optional, FieldType::UInt64, number, data),
         }
@@ -438,6 +544,10 @@ impl Default for UInt64Field {
 }
 
 impl FieldTrait for UInt64Field {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -468,7 +578,7 @@ impl FieldTrait for UInt64Field {
         }
         let (value, readed_x) = deserialize_varint(&into[readed as usize..])?;
 
-        self.0.data = value as i64;
+        self.0.data = value as u64;
         self.0.number = index;
         self.0.type_ = FieldType::Int32;
 
@@ -503,6 +613,10 @@ impl Default for SInt32Field {
 }
 
 impl FieldTrait for SInt32Field {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -574,6 +688,10 @@ impl Default for SInt64Field {
 }
 
 impl FieldTrait for SInt64Field {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -639,6 +757,10 @@ impl Default for BoolField {
 }
 
 impl FieldTrait for BoolField {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -709,6 +831,10 @@ impl Default for Fixed32Field {
 }
 
 impl FieldTrait for Fixed32Field {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -782,6 +908,10 @@ impl Default for SFixed32Field {
 }
 
 impl FieldTrait for SFixed32Field {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -855,6 +985,10 @@ impl Default for FloatField {
 }
 
 impl FieldTrait for FloatField {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -928,6 +1062,10 @@ impl Default for Fixed64Field {
 }
 
 impl FieldTrait for Fixed64Field {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -1003,6 +1141,10 @@ impl Default for SFixed64Field {
 }
 
 impl FieldTrait for SFixed64Field {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -1078,6 +1220,10 @@ impl Default for DoubleField {
 }
 
 impl FieldTrait for DoubleField {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -1153,6 +1299,10 @@ impl Default for StringField {
 }
 
 impl FieldTrait for StringField {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -1242,6 +1392,10 @@ impl Default for BytesField {
 }
 
 impl FieldTrait for BytesField {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -1326,8 +1480,12 @@ where
 
 impl<T> FieldTrait for EmbeddedField<T>
 where
-    T: FieldTrait + Default + Clone,
+    T: FieldTrait + Default + Clone + Any,
 {
+    fn as_any(&self) -> &dyn Any {
+        self
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         let embedded = self.0.data.serialize();
         serialize_varint_into(
@@ -1378,5 +1536,54 @@ where
         self.0.type_ = FieldType::Embedded;
 
         Ok(readed + readed + readed_1 + size)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::proto::field::*;
+
+    #[test]
+    fn serialization() {
+        fn check<T: FieldTrait>(field: T, proto: &[u8]) {
+            let proto_vec: Vec<u8> = field.serialize();
+            assert_eq!(proto, &proto_vec);
+        }
+        // Check Int32
+        check(
+            Int32Field::new("".to_string(), 1, -0xFFFFFF),
+            &[
+                0x8, 0x81, 0x80, 0x80, 0xf8, 0xff, 0xff, 0xff, 0xff, 0xff, 0x1,
+            ],
+        );
+        // Check Int64
+        check(
+            Int64Field::new("".to_string(), 1, -0xFFFFFFFFFFFFFF),
+            &[
+                0x8, 0x81, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0xff, 0x1,
+            ],
+        );
+        // Check UInt32
+        check(
+            UInt32Field::new("".to_string(), 1, 0x9FFFFFFF),
+            &[0x8, 0xff, 0xff, 0xff, 0xff, 0x9],
+        );
+        // Check UInt64
+        check(
+            UInt64Field::new("".to_string(), 1, 0x9FFFFFFFFFFFFFFF),
+            &[
+                0x8, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x9f, 0x1,
+            ],
+        );
+        // Check SInt32
+        check(
+            SInt32Field::new("".to_string(), 1, -0xFFFFFF),
+            &[0x8, 0xfd, 0xff, 0xff, 0xf],
+        );
+        // Check SInt64
+        check(
+            SInt64Field::new("".to_string(), 1, -0xFFFFFFFFFFFFFF),
+            &[0x8, 0xfd, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x1],
+        );
     }
 }
