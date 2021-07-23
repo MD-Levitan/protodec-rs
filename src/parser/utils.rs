@@ -24,7 +24,7 @@ pub fn serialize_varint_into(var: u64, gen: &mut Vec<u8>) {
 }
 
 /// Deserialization using Varints method
-/// 
+///
 /// Returns (result, bytes readed)
 pub fn deserialize_varint(gen: &[u8]) -> Result<(u64, u64)> {
     let mut result: u64 = 0;
@@ -32,10 +32,11 @@ pub fn deserialize_varint(gen: &[u8]) -> Result<(u64, u64)> {
     for (i, x) in gen.iter().enumerate() {
         result |= ((x & 0x7F) as u64) << (i * 7);
         if x >> 7 == 0 {
-            readed = i as u64;
+            readed = (i + 1) as u64;
             break;
         }
     }
+    println!("Deserialize: {:?}, {:?}", result, readed);
     Ok((result, readed))
 }
 
@@ -51,10 +52,32 @@ pub fn parse_key(key: u64) -> (u64, u8) {
 
 /// ZigZag Encoding for sint32
 pub fn encode_zigzag_s32(var: i32) -> u64 {
-    ((var as u64) << 1) ^ ((var as u64) >> 31)
+    match (var as u32) >> 31 {
+        0 => (((var as u32) << 1) ^ ((var as u32) >> 31)) as u64,
+        _ => ((((var as u32) ^ 0x7FFFFFFF) << 1) ^ ((var as u32) >> 31)) as u64,
+    }
+}
+
+/// ZigZag Decoding for sint32
+pub fn decode_zigzag_s32(var: u64) -> i32 {
+    match var & 0x1 {
+        0 => ((var << 31) ^ (var >> 1)) as i32,
+        _ => ((var << 31) ^ (var >> 1) ^ 0x7FFFFFFF) as i32,
+    }
 }
 
 /// ZigZag Encoding for sint64
 pub fn encode_zigzag_s64(var: i64) -> u64 {
-    ((var as u64) << 1) ^ ((var as u64) >> 63)
+    match (var as u64) >> 63 {
+        0 => ((var as u64) << 1) ^ ((var as u64) >> 63),
+        _ => (((var as u64) ^ 0x7FFFFFFFFFFFFFFF) << 1) ^ ((var as u64) >> 63),
+    }
+}
+
+/// ZigZag Decoding for sint64
+pub fn decode_zigzag_s64(var: u64) -> i64 {
+    match var & 0x1 {
+        0 => ((var << 63) ^ (var >> 1)) as i64,
+        _ => ((var << 63) ^ (var >> 1) ^ 0x7FFFFFFFFFFFFFFF) as i64,
+    }
 }

@@ -6,7 +6,8 @@ pub enum ErrorType {
     GeneralError,
     ParserError,
     GeneratorError,
-    IncorrectType
+    IncorrectType,
+    IncorrectData,
 }
 
 #[derive(Default)]
@@ -40,7 +41,8 @@ impl Debug for ErrorType {
                 ErrorType::GeneralError => "GeneralError",
                 ErrorType::ParserError => "ParserError",
                 ErrorType::GeneratorError => "GeneratorError",
-                ErrorType::IncorrectType => "IncorrectType"
+                ErrorType::IncorrectType => "IncorrectType",
+                ErrorType::IncorrectData => "IncorrectData",
             }
         )
     }
@@ -56,6 +58,7 @@ impl Display for ErrorType {
                 ErrorType::ParserError => "ParserError",
                 ErrorType::GeneratorError => "GeneratorError",
                 ErrorType::IncorrectType => "IncorrectType",
+                ErrorType::IncorrectData => "IncorrectData",
             }
         )
     }
