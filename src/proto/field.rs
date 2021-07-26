@@ -1,6 +1,7 @@
 use core::any::Any;
 use core::convert::From;
 use core::fmt;
+use core::ops::Add;
 
 use crate::proto::error::{Error, ErrorType, Result};
 use crate::proto::utils::*;
@@ -131,6 +132,38 @@ pub enum FieldType {
     EndGroup,
 }
 
+impl fmt::Display for FieldType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}[{}]",
+            match *self {
+                FieldType::Int32 => "FieldType::Int32",
+                FieldType::Int64 => "FieldType::Int64",
+                FieldType::UInt32 => "FieldType::UInt32",
+                FieldType::UInt64 => "FieldType::UInt64",
+                FieldType::SInt32 => "FieldType::SInt32",
+                FieldType::SInt64 => "FieldType::SInt64",
+                FieldType::Bool => "FieldType::Bool",
+                FieldType::Fixed64 => "FieldType::Fixed64",
+                FieldType::SFixed64 => "FieldType::SFixed64",
+                FieldType::Double => "FieldType::Double",
+                FieldType::String => "FieldType::String",
+                FieldType::Bytes => "FieldType::Bytes",
+                FieldType::Fixed32 => "FieldType::Fixed32",
+                FieldType::SFixed32 => "FieldType::SFixed32",
+                FieldType::Float => "FieldType::Float",
+                FieldType::Enum => "FieldType::Enum",
+                FieldType::Embedded => "FieldType::Embedded",
+                FieldType::Repeated => "FieldType::Repeated",
+                FieldType::StartGroup => "FieldType::StartGroup",
+                FieldType::EndGroup => "FieldType::EndGroup",
+            },
+            *self as u8
+        )
+    }
+}
+
 impl From<FieldType> for VariantTypeRaw {
     fn from(item: FieldType) -> Self {
         match item {
@@ -192,12 +225,23 @@ pub enum FieldLabel {
     Required,
 }
 
+impl fmt::Display for FieldLabel {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "{}",
+            match *self {
+                FieldLabel::Optional => "Optional",
+                FieldLabel::Repeated => "Repeated",
+                FieldLabel::Required => "Required",
+            }
+        )
+    }
+}
+
 /// A Protobuf Field
 #[derive(Debug, Clone, PartialEq)]
-pub struct Field<T>
-where
-    T: Clone,
-{
+pub struct Field<T> {
     /// Field name
     pub name: String,
     /// Field `Rule`
@@ -226,13 +270,15 @@ pub trait FieldTrait {
     fn serialize(&self) -> Vec<u8>;
     fn serialize_into(&self, into: &mut Vec<u8>);
     fn deserialize(&mut self, into: &[u8]) -> Result<u64>;
-    fn as_any(&self) -> &dyn Any;
+    fn as_any(&mut self) -> &mut dyn Any;
+    fn repr(&self) -> String;
 }
 
-impl<T> Field<T>
-where
-    T: Clone,
-{
+// impl fmt::Display for dyn FieldTrait {
+//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {}
+// }
+
+impl<T> Field<T> {
     fn new(name: String, rule: FieldLabel, type_: FieldType, number: u64, data: T) -> Self {
         Field {
             name: name,
@@ -242,12 +288,31 @@ where
             data: data,
         }
     }
+
+    fn repr(&self, data_repr: &str) -> String {
+        format!(
+            "{:#x} {} <{} == {}> = {:?}",
+            self.number,
+            self.rule,
+            self.type_,
+            VariantTypeRaw::from(self.type_),
+            data_repr.clone()
+        )
+    }
 }
 
 impl FieldTrait for Field<Vec<u8>> {
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&mut self) -> &mut dyn Any {
         self
     }
+
+    fn repr(&self) -> String {
+        let data_repr = self.data.iter().fold(String::new(), |data_repr, x| {
+            data_repr.add(&format!("{:#x}", x))
+        });
+        self.repr(&data_repr)
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.number, VariantTypeRaw::from(self.type_) as u8),
@@ -325,8 +390,12 @@ impl Default for Int32Field {
 }
 
 impl FieldTrait for Int32Field {
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn repr(&self) -> String {
+        self.0.repr(&format!("{:#x}", self.0.data))
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -400,8 +469,12 @@ impl Default for Int64Field {
 }
 
 impl FieldTrait for Int64Field {
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn repr(&self) -> String {
+        self.0.repr(&format!("{:#x}", self.0.data))
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -469,8 +542,12 @@ impl Default for UInt32Field {
 }
 
 impl FieldTrait for UInt32Field {
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn repr(&self) -> String {
+        self.0.repr(&format!("{:#x}", self.0.data))
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -544,8 +621,12 @@ impl Default for UInt64Field {
 }
 
 impl FieldTrait for UInt64Field {
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn repr(&self) -> String {
+        self.0.repr(&format!("{:#x}", self.0.data))
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -613,8 +694,12 @@ impl Default for SInt32Field {
 }
 
 impl FieldTrait for SInt32Field {
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn repr(&self) -> String {
+        self.0.repr(&format!("{:#x}", self.0.data))
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -688,8 +773,12 @@ impl Default for SInt64Field {
 }
 
 impl FieldTrait for SInt64Field {
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn repr(&self) -> String {
+        self.0.repr(&format!("{:#x}", self.0.data))
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -757,8 +846,12 @@ impl Default for BoolField {
 }
 
 impl FieldTrait for BoolField {
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn repr(&self) -> String {
+        self.0.repr(&format!("{:}", self.0.data))
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -831,8 +924,12 @@ impl Default for Fixed32Field {
 }
 
 impl FieldTrait for Fixed32Field {
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn repr(&self) -> String {
+        self.0.repr(&format!("{:#x}", self.0.data))
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -908,8 +1005,12 @@ impl Default for SFixed32Field {
 }
 
 impl FieldTrait for SFixed32Field {
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn repr(&self) -> String {
+        self.0.repr(&format!("{:#x}", self.0.data))
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -985,8 +1086,12 @@ impl Default for FloatField {
 }
 
 impl FieldTrait for FloatField {
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn repr(&self) -> String {
+        self.0.repr(&format!("{:}", self.0.data))
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -1062,8 +1167,12 @@ impl Default for Fixed64Field {
 }
 
 impl FieldTrait for Fixed64Field {
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn repr(&self) -> String {
+        self.0.repr(&format!("{:#x}", self.0.data))
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -1141,8 +1250,12 @@ impl Default for SFixed64Field {
 }
 
 impl FieldTrait for SFixed64Field {
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn repr(&self) -> String {
+        self.0.repr(&format!("{:#x}", self.0.data))
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -1220,8 +1333,12 @@ impl Default for DoubleField {
 }
 
 impl FieldTrait for DoubleField {
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn repr(&self) -> String {
+        self.0.repr(&format!("{:}", self.0.data))
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -1299,8 +1416,12 @@ impl Default for StringField {
 }
 
 impl FieldTrait for StringField {
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn repr(&self) -> String {
+        self.0.repr(&self.0.data)
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -1355,7 +1476,7 @@ impl FieldTrait for StringField {
         self.0.number = index;
         self.0.type_ = FieldType::String;
 
-        Ok(readed + readed + readed_1 + size)
+        Ok(readed + readed_1 + size)
     }
 }
 
@@ -1392,8 +1513,15 @@ impl Default for BytesField {
 }
 
 impl FieldTrait for BytesField {
-    fn as_any(&self) -> &dyn Any {
+    fn as_any(&mut self) -> &mut dyn Any {
         self
+    }
+
+    fn repr(&self) -> String {
+        let mut data_repr = self.0.data.iter().fold(String::new(), |data_repr, x| {
+            data_repr.add(&format!("{:#x}", x))
+        });
+        self.0.repr(&data_repr)
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -1446,25 +1574,125 @@ impl FieldTrait for BytesField {
     }
 }
 
-/// Filed with type Embedded
-#[derive(Debug, Clone, PartialEq)]
-pub struct EmbeddedField<T: FieldTrait + Clone + Default>(pub Field<T>);
+// /// Filed with type Embedded
+// #[derive(Debug, Clone, PartialEq)]
+// pub struct EmbeddedField<T: FieldTrait + Clone + Default>(pub Field<T>);
 
-impl<T> EmbeddedField<T>
-where
-    T: FieldTrait + Clone + Default,
-{
-    fn new(name: String, number: u64, data: T) -> Self {
+// impl<T> EmbeddedField<T>
+// where
+//     T: FieldTrait + Clone + Default,
+// {
+//     fn new(name: String, number: u64, data: T) -> Self {
+//         Self {
+//             0: Field::new(name, FieldLabel::Optional, FieldType::Bytes, number, data),
+//         }
+//     }
+// }
+
+// impl<T> Default for EmbeddedField<T>
+// where
+//     T: FieldTrait + Clone + Default,
+// {
+//     fn default() -> Self {
+//         EmbeddedField {
+//             0: Field {
+//                 name: "".to_string(),
+//                 rule: FieldLabel::Optional,
+//                 type_: FieldType::Bytes,
+//                 number: 0,
+//                 data: T::default(),
+//             },
+//         }
+//     }
+// }
+
+// impl<T> FieldTrait for EmbeddedField<T>
+// where
+//     T: FieldTrait + Default + Clone + Any,
+// {
+//     fn as_any(&mut self) -> &mut dyn Any {
+//         self
+//     }
+
+//     fn repr(&self) -> String {
+//         self.0.repr(&format!("{:}", self.0.data.repr()))
+//     }
+
+//     fn serialize_into(&self, into: &mut Vec<u8>) {
+//         let embedded = self.0.data.serialize();
+//         serialize_varint_into(
+//             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
+//             into,
+//         );
+//         serialize_varint_into(embedded.len() as u64, into);
+//         into.extend(&embedded);
+//     }
+
+//     fn serialize(&self) -> Vec<u8> {
+//         let mut gen = Vec::new();
+//         self.serialize_into(&mut gen);
+//         gen
+//     }
+
+//     fn deserialize(&mut self, into: &[u8]) -> Result<u64> {
+//         let (key, readed) = deserialize_varint(into)?;
+//         let (index, type_int) = parse_key(key);
+//         // Check Type if queal to `VariantTypeRaw::Buffer`
+//         if type_int != VariantTypeRaw::Buffer as u8 {
+//             return Err(Error::new(
+//                 &format!(
+//                     "expected `{}` found `{}`",
+//                     VariantTypeRaw::Buffer,
+//                     VariantTypeRaw::from(type_int)
+//                 ),
+//                 Some(ErrorType::IncorrectType),
+//             ));
+//         }
+//         let (size, readed_1) = deserialize_varint(&into[readed as usize..])?;
+//         if into[(readed + readed_1) as usize..].len() < size as usize {
+//             return Err(Error::new(
+//                 &format!(
+//                     "expected {} bytes found `{}`",
+//                     size,
+//                     into[readed as usize..].len()
+//                 ),
+//                 Some(ErrorType::IncorrectData),
+//             ));
+//         }
+//         let mut value = T::default();
+//         value.deserialize(
+//             &into[(readed + readed_1) as usize..(readed + readed_1 + size) as usize],
+//         )?;
+//         self.0.data = value;
+//         self.0.number = index;
+//         self.0.type_ = FieldType::Embedded;
+
+//         Ok(readed + readed + readed_1 + size)
+//     }
+// }
+
+pub struct FieldsVector {
+    pub fields: Vec<Box<dyn FieldTrait>>,
+}
+
+impl Default for FieldsVector {
+    fn default() -> Self {
+        Self { fields: Vec::new() }
+    }
+}
+
+/// Filed with type Embedded
+pub struct EmbeddedField(pub Field<FieldsVector>);
+
+impl EmbeddedField {
+    fn new(name: String, number: u64, data: FieldsVector) -> Self {
         Self {
             0: Field::new(name, FieldLabel::Optional, FieldType::Bytes, number, data),
         }
     }
 }
 
-impl<T> Default for EmbeddedField<T>
-where
-    T: FieldTrait + Clone + Default,
-{
+impl Default for EmbeddedField {
     fn default() -> Self {
         EmbeddedField {
             0: Field {
@@ -1472,22 +1700,29 @@ where
                 rule: FieldLabel::Optional,
                 type_: FieldType::Bytes,
                 number: 0,
-                data: T::default(),
+                data: FieldsVector::default(),
             },
         }
     }
 }
 
-impl<T> FieldTrait for EmbeddedField<T>
-where
-    T: FieldTrait + Default + Clone + Any,
-{
-    fn as_any(&self) -> &dyn Any {
+impl FieldTrait for EmbeddedField {
+    fn as_any(&mut self) -> &mut dyn Any {
         self
     }
 
+    fn repr(&self) -> String {
+        String::new() //self.0.repr(&format!("{:}", self.0.data.repr()))
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
-        let embedded = self.0.data.serialize();
+        let mut embedded = Vec::new();
+        self.0
+            .data
+            .fields
+            .iter()
+            .for_each(|x| x.serialize_into(&mut embedded));
+
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
             into,
@@ -1527,15 +1762,12 @@ where
                 Some(ErrorType::IncorrectData),
             ));
         }
-        let mut value = T::default();
-        value.deserialize(
-            &into[(readed + readed_1) as usize..(readed + readed_1 + size) as usize],
-        )?;
-        self.0.data = value;
+        //TODO: Add parser?
+        self.0.data = FieldsVector::default();
         self.0.number = index;
         self.0.type_ = FieldType::Embedded;
 
-        Ok(readed + readed + readed_1 + size)
+        Ok(readed + readed_1 + size)
     }
 }
 

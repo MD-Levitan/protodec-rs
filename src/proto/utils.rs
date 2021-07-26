@@ -36,7 +36,13 @@ pub fn deserialize_varint(gen: &[u8]) -> Result<(u64, u64)> {
             break;
         }
     }
-    println!("Deserialize: {:?}, {:?}", result, readed);
+    log::debug!(
+        "deserialize_varint: result - {:?}[{:#x}], {:?}[{:#x}]",
+        result,
+        result,
+        readed,
+        readed,
+    );
     Ok((result, readed))
 }
 
