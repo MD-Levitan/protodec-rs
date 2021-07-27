@@ -17,15 +17,15 @@ const SimpleFieldsOrder: &'static [FieldType] = &[
     FieldType::Fixed64,
     FieldType::SFixed64,
     FieldType::Double,
-    FieldType::String,
-    FieldType::Bytes,
     FieldType::Fixed32,
     FieldType::SFixed32,
     FieldType::Float,
-    // FieldType::Enum,
+    FieldType::String,
     FieldType::Embedded,
+    FieldType::Bytes,
+    // FieldType::Enum,
     // FieldType::Repeated,
-    // FieldType::StartGroup,
+    FieldType::StartGroup,
     // FieldType::EndGroup,
 ];
 
@@ -111,7 +111,7 @@ impl<'a> FullParser<'a> {
         into: &[u8],
         field_type: FieldType,
     ) -> Result<(Box<dyn FieldTrait>, u64)> {
-        log::debug!("deserialization: try deserialize as {:}", field_type);
+        log::debug!("Deserialization: try deserialize as {:}", field_type);
         let mut field: Box<dyn FieldTrait> = (field_type).into();
         (*field).deserialize(into).and_then(|x| Ok((field, x)))
     }
@@ -119,10 +119,10 @@ impl<'a> FullParser<'a> {
     pub fn try_deserialize_field(&self, into: &[u8]) -> Result<(Box<dyn FieldTrait>, u64)> {
         for i in self.fields_order.iter() {
             let mut field: Box<dyn FieldTrait> = (*i).into();
-            log::debug!("deserialization: try deserialize as {:}", i);
+            log::debug!("Deserialization: try deserialize as {:}", i);
             match (*field).deserialize(into) {
                 Ok(i) => {
-                    log::debug!("deserialization: deserialize as {:} successed", i);
+                    log::debug!("Deserialization: deserialize as {:} successed", i);
                     return Ok((field, i));
                 }
                 Err(_) => continue,
@@ -137,36 +137,47 @@ impl<'a> FullParser<'a> {
         let mut index: u64 = 0;
         while index != into.len() as u64 {
             log::debug!(
-                "deserialization: current_index - {:?}, data_len - {:?}",
+                "Deserialization Loop: current_index - {:?}, data_len - {:?}",
                 index,
                 into.len()
             );
+            let mut found = false;
             for filed_type in self.fields_order.iter() {
                 match *filed_type {
                     FieldType::Embedded => {
-                        match self.try_deserialize_specific_field(&into[index as usize..], *filed_type) {
+                        match self
+                            .try_deserialize_specific_field(&into[index as usize..], *filed_type)
+                        {
                             Ok((mut s_em, i)) => {
-                                log::error!("deserialization: deserialize as {:}(size: {:}) successed\n\n", filed_type, i);
-                                let embedded =
-                                    match self.deserialize_fields(&into[(index + i) as usize..]) {
-                                        Ok((s, i)) => {
-                                            index += i;
-                                            s
+                                log::error!("Deserialization: deserialize as {:} (size: {:}) successed {:}\n\n", filed_type, i, s_em.repr());
+                                match s_em.as_any().downcast_mut::<EmbeddedField>() {
+                                    Some(b) => match &b.raw {
+                                        Some(data) => {
+                                            let embedded = match self.deserialize_fields(&data) {
+                                                Ok((s, _)) => {
+                                                    //index += i;
+                                                    s
+                                                }
+                                                Err(e) => {
+                                                    log::error!("{:}", e);
+                                                    continue;
+                                                }
+                                            };
+                                            b.field.data.fields = embedded;
                                         }
-                                        Err(e) => {
-                                            log::error!("{:}", e);
+                                        None => {
+                                            log::error!("{:}", "Failed to create Embedded 1");
                                             continue;
                                         }
-                                    };
-
-                                match s_em.as_any().downcast_mut::<EmbeddedField>() {
-                                    Some(b) => {
-                                        b.0.data.fields = embedded;
+                                    },
+                                    None => {
+                                        log::error!("{:}  {:?}", "Failed to create Embedded", s_em.repr());
+                                        continue;
                                     }
-                                    None => panic!("&a isn't a B!"),
                                 };
                                 fields.push(s_em);
                                 index += i;
+                                found = true;
                                 break;
                             }
                             Err(e) => {
@@ -176,11 +187,14 @@ impl<'a> FullParser<'a> {
                         };
                     }
                     _ => {
-                        match self.try_deserialize_specific_field(&into[index as usize..], *filed_type) {
+                        match self
+                            .try_deserialize_specific_field(&into[index as usize..], *filed_type)
+                        {
                             Ok((s, i)) => {
-                                log::error!("deserialization: deserialize as {:}(size: {:}) successed\n\n", filed_type, i);
+                                log::error!("deserialization: deserialize as {:}(size: {:}) successed{:}\n\n", filed_type, i, s.repr());
                                 fields.push(s);
                                 index += i;
+                                found = true;
                                 break;
                             }
                             Err(e) => {
@@ -191,7 +205,9 @@ impl<'a> FullParser<'a> {
                     }
                 }
             }
-            // return Err(Error::new("Failed to parse", None));
+            if found == false {
+                return Err(Error::new("Failed to find suitable filed", None));
+            }
         }
         Ok((fields, index))
     }

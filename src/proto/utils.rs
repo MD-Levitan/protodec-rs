@@ -10,7 +10,6 @@ pub fn serialize_varint(var: u64) -> Vec<u8> {
 
 /// Serialization using Varints method into Vec
 pub fn serialize_varint_into(var: u64, gen: &mut Vec<u8>) {
-    println!("Searilize {:?}", var);
     let mut x = var;
     match x {
         0 => gen.push(0),
@@ -26,6 +25,7 @@ pub fn serialize_varint_into(var: u64, gen: &mut Vec<u8>) {
 /// Deserialization using Varints method
 ///
 /// Returns (result, bytes readed)
+use std::ops::Add;
 pub fn deserialize_varint(gen: &[u8]) -> Result<(u64, u64)> {
     let mut result: u64 = 0;
     let mut readed: u64 = 0;
@@ -36,8 +36,11 @@ pub fn deserialize_varint(gen: &[u8]) -> Result<(u64, u64)> {
             break;
         }
     }
-    log::debug!(
-        "deserialize_varint: result - {:?}[{:#x}], {:?}[{:#x}]",
+    log::trace!(
+        "VarInt: bytes {} -> <result {}[{}], {}[{}]>",
+        &gen[0..readed as usize]
+            .iter()
+            .fold(String::new(), |s, x| s.add(&format!("{:02x} ", x))),
         result,
         result,
         readed,

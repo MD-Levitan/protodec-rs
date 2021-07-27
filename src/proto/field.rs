@@ -20,6 +20,8 @@ pub enum VariantTypeRaw {
     EndGroup = 4,
     /// Used for fixed32, SFixed32, float
     Float = 5,
+    /// Undefined Type
+    Undefined = -1,
 }
 
 impl fmt::Display for VariantTypeRaw {
@@ -34,6 +36,7 @@ impl fmt::Display for VariantTypeRaw {
                 VariantTypeRaw::StartGroup => "VariantTypeRaw::StartGroup",
                 VariantTypeRaw::EndGroup => "VariantTypeRaw::EndGroup",
                 VariantTypeRaw::Float => "VariantTypeRaw::Float",
+                VariantTypeRaw::Undefined => "VariantTypeRaw::Undefined",
             },
             *self as u8
         )
@@ -49,8 +52,7 @@ impl From<u8> for VariantTypeRaw {
             3 => VariantTypeRaw::StartGroup,
             4 => VariantTypeRaw::EndGroup,
             5 => VariantTypeRaw::Float,
-            // Unreal sutuation
-            _ => VariantTypeRaw::StartGroup,
+            _ => VariantTypeRaw::Undefined,
         }
     }
 }
@@ -200,11 +202,11 @@ impl From<FieldType> for Box<dyn FieldTrait> {
             FieldType::Fixed64 => Box::new(Fixed64Field::default()),
             FieldType::SFixed64 => Box::new(SFixed64Field::default()),
             FieldType::Double => Box::new(DoubleField::default()),
-            FieldType::Embedded => Box::new(Field::default()), //Box::new(EmbeddedField::default()),
+            FieldType::Embedded => Box::new(EmbeddedField::default()),
             FieldType::Repeated => Box::new(Field::default()), //Box::new(RepeatedField::default()),
             FieldType::Bytes => Box::new(BytesField::default()),
             FieldType::String => Box::new(StringField::default()),
-            FieldType::StartGroup => Box::new(Field::default()), //Box::new(StartGroupField::default()),
+            FieldType::StartGroup => Box::new(StartGroupField::default()),
             FieldType::EndGroup => Box::new(Field::default()), //Box::new(EndGroupField::default()),
             FieldType::Fixed32 => Box::new(Fixed32Field::default()),
             FieldType::SFixed32 => Box::new(Fixed64Field::default()),
@@ -291,7 +293,7 @@ impl<T> Field<T> {
 
     fn repr(&self, data_repr: &str) -> String {
         format!(
-            "{:#x} {} <{} == {}> = {:?}",
+            "{:#x} {} <{} == {}> = {}",
             self.number,
             self.rule,
             self.type_,
@@ -308,7 +310,7 @@ impl FieldTrait for Field<Vec<u8>> {
 
     fn repr(&self) -> String {
         let data_repr = self.data.iter().fold(String::new(), |data_repr, x| {
-            data_repr.add(&format!("{:#x}", x))
+            data_repr.add(&format!("{:02x}", x))
         });
         self.repr(&data_repr)
     }
@@ -342,13 +344,21 @@ impl FieldTrait for Field<Vec<u8>> {
                 Some(ErrorType::IncorrectType),
             ));
         }
+
+        if readed as usize >= into.len() {
+            return Err(Error::new(
+                &format!("insufficient amount of data to continue parsing"),
+                Some(ErrorType::IncorrectData),
+            ));
+        }
+
         let (size, readed_1) = deserialize_varint(&into[readed as usize..])?;
-        if into[(readed + readed_1) as usize..].len() < size as usize {
+        if (readed + readed_1 + size) as usize > into.len() {
             return Err(Error::new(
                 &format!(
-                    "expected {} bytes found `{}`",
-                    size,
-                    into[readed as usize..].len()
+                    "expected {} bytes, found `{}`",
+                    (readed + readed_1 + size),
+                    into.len()
                 ),
                 Some(ErrorType::IncorrectData),
             ));
@@ -426,6 +436,14 @@ impl FieldTrait for Int32Field {
                 Some(ErrorType::IncorrectType),
             ));
         }
+
+        if readed as usize >= into.len() {
+            return Err(Error::new(
+                &format!("insufficient amount of data to continue parsing"),
+                Some(ErrorType::IncorrectData),
+            ));
+        }
+
         let (value, readed_x) = deserialize_varint(&into[readed as usize..])?;
         if (value >> 0x32) != 0 {
             return Err(Error::new(
@@ -505,6 +523,14 @@ impl FieldTrait for Int64Field {
                 Some(ErrorType::IncorrectType),
             ));
         }
+
+        if readed as usize >= into.len() {
+            return Err(Error::new(
+                &format!("insufficient amount of data to continue parsing"),
+                Some(ErrorType::IncorrectData),
+            ));
+        }
+
         let (value, readed_x) = deserialize_varint(&into[readed as usize..])?;
 
         self.0.data = value as i64;
@@ -578,6 +604,14 @@ impl FieldTrait for UInt32Field {
                 Some(ErrorType::IncorrectType),
             ));
         }
+
+        if readed as usize >= into.len() {
+            return Err(Error::new(
+                &format!("insufficient amount of data to continue parsing"),
+                Some(ErrorType::IncorrectData),
+            ));
+        }
+
         let (value, readed_x) = deserialize_varint(&into[readed as usize..])?;
         if (value >> 0x32) != 0 {
             return Err(Error::new(
@@ -657,6 +691,14 @@ impl FieldTrait for UInt64Field {
                 Some(ErrorType::IncorrectType),
             ));
         }
+
+        if readed as usize >= into.len() {
+            return Err(Error::new(
+                &format!("insufficient amount of data to continue parsing"),
+                Some(ErrorType::IncorrectData),
+            ));
+        }
+
         let (value, readed_x) = deserialize_varint(&into[readed as usize..])?;
 
         self.0.data = value as u64;
@@ -730,6 +772,14 @@ impl FieldTrait for SInt32Field {
                 Some(ErrorType::IncorrectType),
             ));
         }
+
+        if readed as usize >= into.len() {
+            return Err(Error::new(
+                &format!("insufficient amount of data to continue parsing"),
+                Some(ErrorType::IncorrectData),
+            ));
+        }
+
         let (value, readed_x) = deserialize_varint(&into[readed as usize..])?;
         if (value >> 0x32) != 0 {
             return Err(Error::new(
@@ -809,6 +859,14 @@ impl FieldTrait for SInt64Field {
                 Some(ErrorType::IncorrectType),
             ));
         }
+
+        if readed as usize >= into.len() {
+            return Err(Error::new(
+                &format!("insufficient amount of data to continue parsing"),
+                Some(ErrorType::IncorrectData),
+            ));
+        }
+
         let (value, readed_x) = deserialize_varint(&into[readed as usize..])?;
 
         self.0.data = decode_zigzag_s64(value);
@@ -882,6 +940,14 @@ impl FieldTrait for BoolField {
                 Some(ErrorType::IncorrectType),
             ));
         }
+
+        if readed as usize >= into.len() {
+            return Err(Error::new(
+                &format!("insufficient amount of data to continue parsing"),
+                Some(ErrorType::IncorrectData),
+            ));
+        }
+
         let (value, readed_x) = deserialize_varint(&into[readed as usize..])?;
         if (value >> 0x1) != 0 {
             return Err(Error::new(
@@ -960,13 +1026,15 @@ impl FieldTrait for Fixed32Field {
                 Some(ErrorType::IncorrectType),
             ));
         }
-        if into[readed as usize..].len() < 4 {
+
+        if (readed + 4) as usize > into.len() {
             return Err(Error::new(
-                &format!("expected 4 bytes found `{}`", into[readed as usize..].len()),
+                &format!("expected {} bytes, found `{}`", (readed + 4), into.len()),
                 Some(ErrorType::IncorrectData),
             ));
         }
-        let ptr = &into[readed as usize..4];
+
+        let ptr = &into[readed as usize..(readed + 4) as usize];
         let value = i32::from_le_bytes([ptr[0], ptr[1], ptr[2], ptr[3]]);
         let readed_x = 0x04;
 
@@ -1041,13 +1109,14 @@ impl FieldTrait for SFixed32Field {
                 Some(ErrorType::IncorrectType),
             ));
         }
-        if into[readed as usize..].len() < 8 {
+
+        if (readed + 4) as usize > into.len() {
             return Err(Error::new(
-                &format!("expected 8 bytes found `{}`", into[readed as usize..].len()),
+                &format!("expected {} bytes, found `{}`", (readed + 4), into.len()),
                 Some(ErrorType::IncorrectData),
             ));
         }
-        let ptr = &into[readed as usize..4];
+        let ptr = &into[readed as usize..(readed + 4) as usize];
         let value = u32::from_le_bytes([ptr[0], ptr[1], ptr[2], ptr[3]]);
         let readed_x = 0x04;
 
@@ -1122,12 +1191,14 @@ impl FieldTrait for FloatField {
                 Some(ErrorType::IncorrectType),
             ));
         }
-        if into[readed as usize..].len() < 4 {
+
+        if (readed + 4) as usize > into.len() {
             return Err(Error::new(
-                &format!("expected 4 bytes found `{}`", into[readed as usize..].len()),
+                &format!("expected {} bytes, found `{}`", (readed + 4), into.len()),
                 Some(ErrorType::IncorrectData),
             ));
         }
+
         let ptr = &into[readed as usize..4];
         let value = f32::from_le_bytes([ptr[0], ptr[1], ptr[2], ptr[3]]);
         let readed_x = 0x04;
@@ -1203,13 +1274,15 @@ impl FieldTrait for Fixed64Field {
                 Some(ErrorType::IncorrectType),
             ));
         }
-        if into[readed as usize..].len() < 8 {
+        if (readed + 8) as usize > into.len() {
             return Err(Error::new(
-                &format!("expected 8 bytes found `{}`", into[readed as usize..].len()),
+                &format!("expected {} bytes, found `{}`", (readed + 8), into.len()),
                 Some(ErrorType::IncorrectData),
             ));
         }
-        let ptr = &into[readed as usize..8];
+
+        let ptr = &into[readed as usize..(readed + 8) as usize];
+        println!("Len {:?}", ptr.len());
         let value = i64::from_le_bytes([
             ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], ptr[6], ptr[7],
         ]);
@@ -1286,13 +1359,15 @@ impl FieldTrait for SFixed64Field {
                 Some(ErrorType::IncorrectType),
             ));
         }
-        if into[readed as usize..].len() < 8 {
+
+        if (readed + 8) as usize > into.len() {
             return Err(Error::new(
-                &format!("expected 8 bytes found `{}`", into[readed as usize..].len()),
+                &format!("expected {} bytes, found `{}`", (readed + 8), into.len()),
                 Some(ErrorType::IncorrectData),
             ));
         }
-        let ptr = &into[readed as usize..8];
+
+        let ptr = &into[readed as usize..(readed + 8) as usize];
         let value = u64::from_le_bytes([
             ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], ptr[6], ptr[7],
         ]);
@@ -1369,13 +1444,14 @@ impl FieldTrait for DoubleField {
                 Some(ErrorType::IncorrectType),
             ));
         }
-        if into[readed as usize..].len() < 8 {
+        if (readed + 8) as usize > into.len() {
             return Err(Error::new(
-                &format!("expected 8 bytes found `{}`", into[readed as usize..].len()),
+                &format!("expected {} bytes, found `{}`", (readed + 8), into.len()),
                 Some(ErrorType::IncorrectData),
             ));
         }
-        let ptr = &into[readed as usize..8];
+
+        let ptr = &into[readed as usize..(readed + 8) as usize];
         let value = f64::from_le_bytes([
             ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], ptr[6], ptr[7],
         ]);
@@ -1453,17 +1529,25 @@ impl FieldTrait for StringField {
                 Some(ErrorType::IncorrectType),
             ));
         }
+        if readed as usize >= into.len() {
+            return Err(Error::new(
+                &format!("insufficient amount of data to continue parsing"),
+                Some(ErrorType::IncorrectData),
+            ));
+        }
+
         let (size, readed_1) = deserialize_varint(&into[readed as usize..])?;
-        if into[(readed + readed_1) as usize..].len() < size as usize {
+        if (readed + readed_1 + size) as usize > into.len() {
             return Err(Error::new(
                 &format!(
-                    "expected {} bytes found `{}`",
-                    size,
-                    into[readed as usize..].len()
+                    "expected {} bytes, found `{}`",
+                    (readed + readed_1 + size),
+                    into.len()
                 ),
                 Some(ErrorType::IncorrectData),
             ));
         }
+
         let value = String::from_utf8(
             into[(readed + readed_1) as usize..(readed + readed_1 + size) as usize].to_vec(),
         )
@@ -1519,7 +1603,7 @@ impl FieldTrait for BytesField {
 
     fn repr(&self) -> String {
         let mut data_repr = self.0.data.iter().fold(String::new(), |data_repr, x| {
-            data_repr.add(&format!("{:#x}", x))
+            data_repr.add(&format!("{:02x}", x))
         });
         self.0.repr(&data_repr)
     }
@@ -1554,12 +1638,12 @@ impl FieldTrait for BytesField {
             ));
         }
         let (size, readed_1) = deserialize_varint(&into[readed as usize..])?;
-        if into[(readed + readed_1) as usize..].len() < size as usize {
+        if (readed + readed_1 + size) as usize > into.len() {
             return Err(Error::new(
                 &format!(
-                    "expected {} bytes found `{}`",
-                    size,
-                    into[readed as usize..].len()
+                    "expected {} bytes, found `{}`",
+                    (readed + readed_1 + size),
+                    into.len()
                 ),
                 Some(ErrorType::IncorrectData),
             ));
@@ -1570,106 +1654,95 @@ impl FieldTrait for BytesField {
         self.0.number = index;
         self.0.type_ = FieldType::Bytes;
 
-        Ok(readed + readed + readed_1 + size)
+        Ok(readed + readed_1 + size)
     }
 }
 
-// /// Filed with type Embedded
-// #[derive(Debug, Clone, PartialEq)]
-// pub struct EmbeddedField<T: FieldTrait + Clone + Default>(pub Field<T>);
+/// Filed with type StartGroup
+/// TODO: change type
+#[derive(Debug, Clone, PartialEq)]
+pub struct StartGroupField(pub Field<i32>);
 
-// impl<T> EmbeddedField<T>
-// where
-//     T: FieldTrait + Clone + Default,
-// {
-//     fn new(name: String, number: u64, data: T) -> Self {
-//         Self {
-//             0: Field::new(name, FieldLabel::Optional, FieldType::Bytes, number, data),
-//         }
-//     }
-// }
+impl StartGroupField {
+    fn new(name: String, number: u64, data: i32) -> Self {
+        Self {
+            0: Field::new(
+                name,
+                FieldLabel::Optional,
+                FieldType::StartGroup,
+                number,
+                data,
+            ),
+        }
+    }
+}
 
-// impl<T> Default for EmbeddedField<T>
-// where
-//     T: FieldTrait + Clone + Default,
-// {
-//     fn default() -> Self {
-//         EmbeddedField {
-//             0: Field {
-//                 name: "".to_string(),
-//                 rule: FieldLabel::Optional,
-//                 type_: FieldType::Bytes,
-//                 number: 0,
-//                 data: T::default(),
-//             },
-//         }
-//     }
-// }
+impl Default for StartGroupField {
+    fn default() -> Self {
+        StartGroupField {
+            0: Field {
+                name: "".to_string(),
+                rule: FieldLabel::Optional,
+                type_: FieldType::StartGroup,
+                number: 0,
+                data: 0,
+            },
+        }
+    }
+}
 
-// impl<T> FieldTrait for EmbeddedField<T>
-// where
-//     T: FieldTrait + Default + Clone + Any,
-// {
-//     fn as_any(&mut self) -> &mut dyn Any {
-//         self
-//     }
+impl FieldTrait for StartGroupField {
+    fn as_any(&mut self) -> &mut dyn Any {
+        self
+    }
 
-//     fn repr(&self) -> String {
-//         self.0.repr(&format!("{:}", self.0.data.repr()))
-//     }
+    fn repr(&self) -> String {
+        self.0.repr(&format!("{:#x}", self.0.data))
+    }
 
-//     fn serialize_into(&self, into: &mut Vec<u8>) {
-//         let embedded = self.0.data.serialize();
-//         serialize_varint_into(
-//             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
-//             into,
-//         );
-//         serialize_varint_into(embedded.len() as u64, into);
-//         into.extend(&embedded);
-//     }
+    fn serialize_into(&self, into: &mut Vec<u8>) {
+        serialize_varint_into(
+            generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
+            into,
+        );
+        //serialize_varint_into(self.0.data as u64, into);
+    }
 
-//     fn serialize(&self) -> Vec<u8> {
-//         let mut gen = Vec::new();
-//         self.serialize_into(&mut gen);
-//         gen
-//     }
+    fn serialize(&self) -> Vec<u8> {
+        let mut gen = Vec::new();
+        self.serialize_into(&mut gen);
+        gen
+    }
 
-//     fn deserialize(&mut self, into: &[u8]) -> Result<u64> {
-//         let (key, readed) = deserialize_varint(into)?;
-//         let (index, type_int) = parse_key(key);
-//         // Check Type if queal to `VariantTypeRaw::Buffer`
-//         if type_int != VariantTypeRaw::Buffer as u8 {
-//             return Err(Error::new(
-//                 &format!(
-//                     "expected `{}` found `{}`",
-//                     VariantTypeRaw::Buffer,
-//                     VariantTypeRaw::from(type_int)
-//                 ),
-//                 Some(ErrorType::IncorrectType),
-//             ));
-//         }
-//         let (size, readed_1) = deserialize_varint(&into[readed as usize..])?;
-//         if into[(readed + readed_1) as usize..].len() < size as usize {
-//             return Err(Error::new(
-//                 &format!(
-//                     "expected {} bytes found `{}`",
-//                     size,
-//                     into[readed as usize..].len()
-//                 ),
-//                 Some(ErrorType::IncorrectData),
-//             ));
-//         }
-//         let mut value = T::default();
-//         value.deserialize(
-//             &into[(readed + readed_1) as usize..(readed + readed_1 + size) as usize],
-//         )?;
-//         self.0.data = value;
-//         self.0.number = index;
-//         self.0.type_ = FieldType::Embedded;
+    fn deserialize(&mut self, into: &[u8]) -> Result<u64> {
+        let (key, readed) = deserialize_varint(into)?;
+        let (index, type_int) = parse_key(key);
+        // Check Type if queal to `VariantTypeRaw::StartGroup`
+        if type_int != VariantTypeRaw::StartGroup as u8 {
+            return Err(Error::new(
+                &format!(
+                    "expected `{}` found `{}`",
+                    VariantTypeRaw::StartGroup,
+                    VariantTypeRaw::from(type_int)
+                ),
+                Some(ErrorType::IncorrectType),
+            ));
+        }
+        // let (value, readed_x) = deserialize_varint(&into[readed as usize..])?;
+        // if (value >> 0x32) != 0 {
+        //     return Err(Error::new(
+        //         "expected `Int32` found `U/Int64`",
+        //         Some(ErrorType::IncorrectData),
+        //     ));
+        // }
 
-//         Ok(readed + readed + readed_1 + size)
-//     }
-// }
+        self.0.data = 0;
+        self.0.number = index;
+        self.0.type_ = FieldType::Int32;
+
+        Ok(readed)
+    }
+}
 
 pub struct FieldsVector {
     pub fields: Vec<Box<dyn FieldTrait>>,
@@ -1682,12 +1755,16 @@ impl Default for FieldsVector {
 }
 
 /// Filed with type Embedded
-pub struct EmbeddedField(pub Field<FieldsVector>);
+pub struct EmbeddedField {
+    pub field: Field<FieldsVector>,
+    pub raw: Option<Vec<u8>>,
+}
 
 impl EmbeddedField {
     fn new(name: String, number: u64, data: FieldsVector) -> Self {
         Self {
-            0: Field::new(name, FieldLabel::Optional, FieldType::Bytes, number, data),
+            field: Field::new(name, FieldLabel::Optional, FieldType::Bytes, number, data),
+            raw: None,
         }
     }
 }
@@ -1695,13 +1772,14 @@ impl EmbeddedField {
 impl Default for EmbeddedField {
     fn default() -> Self {
         EmbeddedField {
-            0: Field {
+            field: Field {
                 name: "".to_string(),
                 rule: FieldLabel::Optional,
                 type_: FieldType::Bytes,
                 number: 0,
                 data: FieldsVector::default(),
             },
+            raw: None,
         }
     }
 }
@@ -1712,19 +1790,43 @@ impl FieldTrait for EmbeddedField {
     }
 
     fn repr(&self) -> String {
-        String::new() //self.0.repr(&format!("{:}", self.0.data.repr()))
+        let raw = match &self.raw {
+            None => "".to_string(),
+            Some(data) => format!(
+                "{:}",
+                data.iter().fold(String::new(), |data_repr, x| {
+                    data_repr.add(&format!("{:02x}", x))
+                })
+            ),
+        };
+
+        let fields = match self.field.data.fields.len() > 0 {
+            false => "".to_string(),
+            true => format!(
+                "{:}",
+                self.field.data.fields.iter().fold(String::new(), |data_repr, x| {
+                    data_repr.add(&format!("\n\t{}", x.repr()))
+                })
+            ),
+        };
+
+        self.field.repr(&format!("Raw <{}> {}", raw, fields))
+        
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
         let mut embedded = Vec::new();
-        self.0
+        self.field
             .data
             .fields
             .iter()
             .for_each(|x| x.serialize_into(&mut embedded));
 
         serialize_varint_into(
-            generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
+            generate_key(
+                self.field.number,
+                VariantTypeRaw::from(self.field.type_) as u8,
+            ),
             into,
         );
         serialize_varint_into(embedded.len() as u64, into);
@@ -1738,6 +1840,7 @@ impl FieldTrait for EmbeddedField {
     }
 
     fn deserialize(&mut self, into: &[u8]) -> Result<u64> {
+        println!("Deserilize Embedded");
         let (key, readed) = deserialize_varint(into)?;
         let (index, type_int) = parse_key(key);
         // Check Type if queal to `VariantTypeRaw::Buffer`
@@ -1751,21 +1854,28 @@ impl FieldTrait for EmbeddedField {
                 Some(ErrorType::IncorrectType),
             ));
         }
+        if readed as usize >= into.len() {
+            return Err(Error::new(
+                &format!("insufficient amount of data to continue parsing"),
+                Some(ErrorType::IncorrectData),
+            ));
+        }
         let (size, readed_1) = deserialize_varint(&into[readed as usize..])?;
-        if into[(readed + readed_1) as usize..].len() < size as usize {
+        if (readed + readed_1 + size) as usize > into.len() {
             return Err(Error::new(
                 &format!(
-                    "expected {} bytes found `{}`",
-                    size,
-                    into[readed as usize..].len()
+                    "expected {} bytes, found `{}`",
+                    (readed + readed_1 + size),
+                    into.len()
                 ),
                 Some(ErrorType::IncorrectData),
             ));
         }
-        //TODO: Add parser?
-        self.0.data = FieldsVector::default();
-        self.0.number = index;
-        self.0.type_ = FieldType::Embedded;
+        self.raw =
+            Some(into[(readed + readed_1) as usize..(readed + readed_1 + size) as usize].to_vec());
+        self.field.data = FieldsVector::default();
+        self.field.number = index;
+        self.field.type_ = FieldType::Embedded;
 
         Ok(readed + readed_1 + size)
     }
