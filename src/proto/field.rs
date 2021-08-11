@@ -1497,7 +1497,15 @@ impl FieldTrait for StringField {
     }
 
     fn repr(&self) -> String {
-        self.0.repr(&self.0.data)
+        let data_repr = self
+            .0
+            .data
+            .as_bytes()
+            .iter()
+            .fold(String::new(), |data_repr, x| {
+                data_repr.add(&format!("{:02x} ", x))
+            });
+        self.0.repr(&format!("{:} ({:})", &self.0.data, &data_repr))
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -1804,14 +1812,17 @@ impl FieldTrait for EmbeddedField {
             false => "".to_string(),
             true => format!(
                 "{:}",
-                self.field.data.fields.iter().fold(String::new(), |data_repr, x| {
-                    data_repr.add(&format!("\n\t{}", x.repr()))
-                })
+                self.field
+                    .data
+                    .fields
+                    .iter()
+                    .fold(String::new(), |data_repr, x| {
+                        data_repr.add(&format!("\n\t{}", x.repr()))
+                    })
             ),
         };
 
         self.field.repr(&format!("Raw <{}> {}", raw, fields))
-        
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -1840,7 +1851,6 @@ impl FieldTrait for EmbeddedField {
     }
 
     fn deserialize(&mut self, into: &[u8]) -> Result<u64> {
-        println!("Deserilize Embedded");
         let (key, readed) = deserialize_varint(into)?;
         let (index, type_int) = parse_key(key);
         // Check Type if queal to `VariantTypeRaw::Buffer`

@@ -9,4 +9,5 @@ edition = "2018"
 [dependencies]
 colored = "2"
 clap = "2.33.1"
-log = { version = "0.4", features = ["std"]}
+log4rs = ""
+log =""

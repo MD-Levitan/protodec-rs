@@ -149,29 +149,28 @@ impl<'a> FullParser<'a> {
                             .try_deserialize_specific_field(&into[index as usize..], *filed_type)
                         {
                             Ok((mut s_em, i)) => {
-                                log::error!("Deserialization: deserialize as {:} (size: {:}) successed {:}\n\n", filed_type, i, s_em.repr());
+                                log::info!("Deserialization: deserialize as {:} (size: {:}) successed {:}\n\n", filed_type, i, s_em.repr());
                                 match s_em.as_any().downcast_mut::<EmbeddedField>() {
                                     Some(b) => match &b.raw {
                                         Some(data) => {
                                             let embedded = match self.deserialize_fields(&data) {
                                                 Ok((s, _)) => {
-                                                    //index += i;
                                                     s
                                                 }
                                                 Err(e) => {
-                                                    log::error!("{:}", e);
+                                                    log::info!("{:}", e);
                                                     continue;
                                                 }
                                             };
                                             b.field.data.fields = embedded;
                                         }
                                         None => {
-                                            log::error!("{:}", "Failed to create Embedded 1");
+                                            log::info!("{:}", "Failed to create Embedded 1");
                                             continue;
                                         }
                                     },
                                     None => {
-                                        log::error!("{:}  {:?}", "Failed to create Embedded", s_em.repr());
+                                        log::info!("{:}  {:?}", "Failed to create Embedded", s_em.repr());
                                         continue;
                                     }
                                 };
@@ -181,7 +180,7 @@ impl<'a> FullParser<'a> {
                                 break;
                             }
                             Err(e) => {
-                                log::error!("{:}", e);
+                                log::info!("{:}", e);
                                 continue;
                             }
                         };
@@ -191,14 +190,14 @@ impl<'a> FullParser<'a> {
                             .try_deserialize_specific_field(&into[index as usize..], *filed_type)
                         {
                             Ok((s, i)) => {
-                                log::error!("deserialization: deserialize as {:}(size: {:}) successed{:}\n\n", filed_type, i, s.repr());
+                                log::info!("deserialization: deserialize as {:}(size: {:}) successed{:}\n\n", filed_type, i, s.repr());
                                 fields.push(s);
                                 index += i;
                                 found = true;
                                 break;
                             }
                             Err(e) => {
-                                log::error!("{:}", e);
+                                log::info!("{:}", e);
                                 continue;
                             }
                         };
