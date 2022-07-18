@@ -1,6 +1,6 @@
 use clap::{crate_version, App, AppSettings, Arg};
-use log::LevelFilter;
 use core::str::FromStr;
+use log::LevelFilter;
 
 pub struct Config {
     pub file: String,

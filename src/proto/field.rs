@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use core::any::Any;
 use core::convert::From;
 use core::fmt;
@@ -310,7 +312,7 @@ impl FieldTrait for Field<Vec<u8>> {
 
     fn repr(&self) -> String {
         let data_repr = self.data.iter().fold(String::new(), |data_repr, x| {
-            data_repr.add(&format!("{:02x}", x))
+            data_repr.add(&format!(" {:02X}", x))
         });
         self.repr(&data_repr)
     }
@@ -1503,7 +1505,7 @@ impl FieldTrait for StringField {
             .as_bytes()
             .iter()
             .fold(String::new(), |data_repr, x| {
-                data_repr.add(&format!("{:02x} ", x))
+                data_repr.add(&format!(" {:02X} ", x))
             });
         self.0.repr(&format!("{:} ({:})", &self.0.data, &data_repr))
     }
@@ -1556,10 +1558,17 @@ impl FieldTrait for StringField {
             ));
         }
 
-        let value = String::from_utf8(
-            into[(readed + readed_1) as usize..(readed + readed_1 + size) as usize].to_vec(),
-        )
-        .or(Err(Error::new(
+        let str_vec =
+            into[(readed + readed_1) as usize..(readed + readed_1 + size) as usize].to_vec();
+
+        if let Some(_) = str_vec.iter().find(|&&x| x < 0x20 || x > 0x7F) {
+            return Err(Error::new(
+                &format!("Failed to create String from bytes(non ASCII)"),
+                Some(ErrorType::IncorrectData),
+            ))?;
+        }
+
+        let value = String::from_utf8(str_vec).or(Err(Error::new(
             &format!("Failed to create String from bytes"),
             Some(ErrorType::IncorrectData),
         )))?;
@@ -1610,8 +1619,8 @@ impl FieldTrait for BytesField {
     }
 
     fn repr(&self) -> String {
-        let mut data_repr = self.0.data.iter().fold(String::new(), |data_repr, x| {
-            data_repr.add(&format!("{:02x}", x))
+        let data_repr = self.0.data.iter().fold(String::new(), |data_repr, x| {
+            data_repr.add(&format!(" {:02X}", x))
         });
         self.0.repr(&data_repr)
     }
@@ -1803,7 +1812,7 @@ impl FieldTrait for EmbeddedField {
             Some(data) => format!(
                 "{:}",
                 data.iter().fold(String::new(), |data_repr, x| {
-                    data_repr.add(&format!("{:02x}", x))
+                    data_repr.add(&format!(" {:02X}", x))
                 })
             ),
         };
@@ -1922,9 +1931,9 @@ mod test {
         );
         // Check UInt64
         check(
-            UInt64Field::new("".to_string(), 1, 0x9FFFFFFFFFFFFFFF),
+            UInt64Field::new("".to_string(), 1, 0x9FFFFFFFFFFFFFFE),
             &[
-                0x8, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x9f, 0x1,
+                0x8, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x9f, 0x1,
             ],
         );
         // Check SInt32
@@ -1936,6 +1945,23 @@ mod test {
         check(
             SInt64Field::new("".to_string(), 1, -0xFFFFFFFFFFFFFF),
             &[0x8, 0xfd, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x1],
+        );
+
+        // Check String
+        check(
+            StringField::new("".to_string(), 0x10, "test value".to_string()),
+            &[130, 1, 10, 116, 101, 115, 116, 32, 118, 97, 108, 117, 101],
+        );
+
+        check(
+            StringField::new("".to_string(), 0x10, "".to_string()),
+            &[130, 1, 0],
+        );
+
+        // Check Bytes
+        check(
+            BytesField::new("".to_string(), 0x10, "test value".as_bytes()),
+            &[130, 1, 10, 116, 101, 115, 116, 32, 118, 97, 108, 117, 101],
         );
     }
 }

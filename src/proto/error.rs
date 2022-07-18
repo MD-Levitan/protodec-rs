@@ -72,10 +72,6 @@ impl Debug for Error {
 
 impl Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "Error: type - {}, message - {}",
-            self.type_, self.details
-        )
+        write!(f, "{}: {{ {} }}", self.type_, self.details)
     }
 }

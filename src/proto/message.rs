@@ -1,5 +1,5 @@
 // use core::fmt;
-use crate::proto::field::{Field, FieldTrait};
+use crate::proto::field::FieldTrait;
 
 /// Protobuf syntax
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -31,12 +31,24 @@ impl Message {
     }
 
     pub fn serialize_into(&self, into: &mut Vec<u8>) {
-       self.fields.iter().for_each(|x| x.serialize_into(into));
+        self.fields.iter().for_each(|x| x.serialize_into(into));
     }
 
     pub fn serialize(&self) -> Vec<u8> {
         let mut gen = Vec::new();
         self.serialize_into(&mut gen);
         gen
+    }
+}
+
+impl core::fmt::Debug for Message {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Message")?;
+
+        for field in self.fields.iter() {
+            writeln!(f, "{}", field.repr())?;
+        }
+
+        Ok(())
     }
 }

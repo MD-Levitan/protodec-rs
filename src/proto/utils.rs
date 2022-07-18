@@ -90,3 +90,24 @@ pub fn decode_zigzag_s64(var: u64) -> i64 {
         _ => ((var << 63) ^ (var >> 1) ^ 0x7FFFFFFFFFFFFFFF) as i64,
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_serialize_varint() {
+        assert_eq!(serialize_varint(0), [0]);
+        assert_eq!(serialize_varint(1), [1]);
+        assert_eq!(serialize_varint(300), [0xAC, 0x02]);
+        assert_eq!(serialize_varint(5000000), [0xC0, 0x96, 0xB1, 0x02]);
+    }
+
+    #[test]
+    fn test_generate_key() {
+        assert_eq!(generate_key(0, 0), 0);
+        assert_eq!(generate_key(1234, 0), 9872);
+        assert_eq!(generate_key(0xFFFFFFFF, 3), 34359738363);
+        assert_eq!(generate_key(0xFFFFFFFFFF, 4), 8796093022204);
+    }
+}
