@@ -54,14 +54,26 @@ fn test() {
 
 fn main() {
     let config = get_config();
-    let mut data = Vec::new();
+    
 
     init_log(config.verbose_level).unwrap();
 
-    // test();
+    let data = if let Some(file_data) = config.file
+    {
+        let mut data = Vec::new();
+        let mut f = File::open(file_data).expect("Something went wrong reading the file");
+        f.read_to_end(&mut data).expect("Failed to read data");
+        data
+    }
+    else if let Some(data) = config.data{
+        data
+    }
+    else{
+        println!("Unable to parse 'data' value");
+        std::process::exit(1);
+    };
+    
 
-    let mut f = File::open(config.file).expect("Something went wrong reading the file");
-    f.read_to_end(&mut data).expect("Failed to read data");
 
     let parser = FullParser::new();
     let message = parser.deserialize(&data).unwrap();
@@ -73,10 +85,10 @@ fn main() {
         println!("{}", field.repr());
     }
 
-    let deserializer = PartialParser::new();
-    let map = deserializer.deserialize_map(&data);
+    // let deserializer = PartialParser::new();
+    // let map = deserializer.deserialize_map(&data);
 
-    for (bounds, value) in map.iter() {
-        println!("data[{:x}:{:x}] - {:?}", bounds.0, bounds.1, value);
-    }
+    // for (bounds, value) in map.iter() {
+    //     println!("data[{:x}:{:x}] - {:?}", bounds.0, bounds.1, value);
+    // }
 }
