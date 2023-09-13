@@ -1,4 +1,4 @@
-use crate::proto::error::Result;
+use crate::proto::error::{Error, ErrorType, Result};
 
 /// Serialization using Varints method
 pub fn serialize_varint(var: u64) -> Vec<u8> {
@@ -30,6 +30,13 @@ pub fn deserialize_varint(gen: &[u8]) -> Result<(u64, u64)> {
     let mut result: u64 = 0;
     let mut readed: u64 = 0;
     for (i, x) in gen.iter().enumerate() {
+        if i > 9_usize {
+            return Err(Error::new(
+                "too big vaule to store in u64",
+                Some(ErrorType::IncorrectType),
+            ));
+        }
+
         result |= ((x & 0x7F) as u64) << (i * 7);
         if x >> 7 == 0 {
             readed = (i + 1) as u64;

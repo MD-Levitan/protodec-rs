@@ -12,7 +12,7 @@ use crate::proto::utils::*;
 pub enum VariantTypeRaw {
     /// Used for int32, int64, UInt32, UInt64, sint32, sint64, bool, enum
     Varint = 0,
-    /// Used for fixed64, SFixed64, double
+    /// Used for fixed64, sfixed64, double
     Double = 1,
     /// Used for string, bytes, embedded messages, packed repeated fields
     Buffer = 2,
@@ -20,7 +20,7 @@ pub enum VariantTypeRaw {
     StartGroup = 3,
     /// Used for groups (deprecated)
     EndGroup = 4,
-    /// Used for fixed32, SFixed32, float
+    /// Used for fixed32, sfixed32, float
     Float = 5,
     /// Undefined Type
     Undefined = -1,
@@ -217,6 +217,33 @@ impl From<FieldType> for Box<dyn FieldTrait> {
     }
 }
 
+impl FieldType {
+    fn to_str(&self) -> &str {
+        match *self {
+            FieldType::Int32 => "int32",
+            FieldType::Int64 => "int64",
+            FieldType::UInt32 => "uint32",
+            FieldType::UInt64 => "uint64",
+            FieldType::SInt32 => "sint32",
+            FieldType::SInt64 => "sint64",
+            FieldType::Bool => "bool",
+            FieldType::Fixed64 => "fixed64",
+            FieldType::SFixed64 => "sfixed64",
+            FieldType::Double => "double",
+            FieldType::String => "string",
+            FieldType::Bytes => "bytes",
+            FieldType::Fixed32 => "fixed32",
+            FieldType::SFixed32 => "sfixed32",
+            FieldType::Float => "float",
+            FieldType::Enum => "enum",
+            FieldType::Embedded => "embedded",
+            FieldType::Repeated => "repeated",
+            FieldType::StartGroup => "startgroup",
+            FieldType::EndGroup => "endgroup",
+        }
+    }
+}
+
 /// A field rule
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
 pub enum FieldLabel {
@@ -235,9 +262,9 @@ impl fmt::Display for FieldLabel {
             f,
             "{}",
             match *self {
-                FieldLabel::Optional => "Optional",
-                FieldLabel::Repeated => "Repeated",
-                FieldLabel::Required => "Required",
+                FieldLabel::Optional => "optional",
+                FieldLabel::Repeated => "repeated",
+                FieldLabel::Required => "required",
             }
         )
     }
@@ -276,11 +303,8 @@ pub trait FieldTrait {
     fn deserialize(&mut self, into: &[u8]) -> Result<u64>;
     fn as_any(&mut self) -> &mut dyn Any;
     fn repr(&self) -> String;
+    fn to_str(&self, name: &str) -> String;
 }
-
-// impl fmt::Display for dyn FieldTrait {
-//     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {}
-// }
 
 impl<T> Field<T> {
     fn new(name: String, rule: FieldLabel, type_: FieldType, number: u64, data: T) -> Self {
@@ -291,6 +315,17 @@ impl<T> Field<T> {
             number: number,
             data: data,
         }
+    }
+
+    fn to_str(&self, data_repr: &str, name: &str) -> String {
+        format!(
+            "{rule} {type} {name} = {number};        // Example: {data}",
+            number = self.number,
+            rule = self.rule,
+            type = self.type_.to_str(),
+            data = data_repr.clone(),
+            name = name
+        )
     }
 
     fn repr(&self, data_repr: &str) -> String {
@@ -315,6 +350,13 @@ impl FieldTrait for Field<Vec<u8>> {
             data_repr.add(&format!(" {:02X}", x))
         });
         self.repr(&data_repr)
+    }
+
+    fn to_str(&self, name: &str) -> String {
+        let data_repr = self.data.iter().fold(String::new(), |data_repr, x| {
+            data_repr.add(&format!(" {:02X}", x))
+        });
+        self.to_str(&data_repr, name)
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -410,6 +452,10 @@ impl FieldTrait for Int32Field {
         self.0.repr(&format!("{:#x}", self.0.data))
     }
 
+    fn to_str(&self, name: &str) -> String {
+        self.0.to_str(&format!("{}", self.0.data), name)
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -497,6 +543,10 @@ impl FieldTrait for Int64Field {
         self.0.repr(&format!("{:#x}", self.0.data))
     }
 
+    fn to_str(&self, name: &str) -> String {
+        self.0.to_str(&format!("{}", self.0.data), name)
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -576,6 +626,10 @@ impl FieldTrait for UInt32Field {
 
     fn repr(&self) -> String {
         self.0.repr(&format!("{:#x}", self.0.data))
+    }
+
+    fn to_str(&self, name: &str) -> String {
+        self.0.to_str(&format!("{}", self.0.data), name)
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -665,6 +719,10 @@ impl FieldTrait for UInt64Field {
         self.0.repr(&format!("{:#x}", self.0.data))
     }
 
+    fn to_str(&self, name: &str) -> String {
+        self.0.to_str(&format!("{}", self.0.data), name)
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -744,6 +802,10 @@ impl FieldTrait for SInt32Field {
 
     fn repr(&self) -> String {
         self.0.repr(&format!("{:#x}", self.0.data))
+    }
+
+    fn to_str(&self, name: &str) -> String {
+        self.0.to_str(&format!("{}", self.0.data), name)
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -833,6 +895,10 @@ impl FieldTrait for SInt64Field {
         self.0.repr(&format!("{:#x}", self.0.data))
     }
 
+    fn to_str(&self, name: &str) -> String {
+        self.0.to_str(&format!("{}", self.0.data), name)
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -912,6 +978,10 @@ impl FieldTrait for BoolField {
 
     fn repr(&self) -> String {
         self.0.repr(&format!("{:}", self.0.data))
+    }
+
+    fn to_str(&self, name: &str) -> String {
+        self.0.to_str(&format!("{}", self.0.data), name)
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -1000,6 +1070,10 @@ impl FieldTrait for Fixed32Field {
         self.0.repr(&format!("{:#x}", self.0.data))
     }
 
+    fn to_str(&self, name: &str) -> String {
+        self.0.to_str(&format!("{}", self.0.data), name)
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -1083,6 +1157,10 @@ impl FieldTrait for SFixed32Field {
         self.0.repr(&format!("{:#x}", self.0.data))
     }
 
+    fn to_str(&self, name: &str) -> String {
+        self.0.to_str(&format!("{}", self.0.data), name)
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -1163,6 +1241,10 @@ impl FieldTrait for FloatField {
 
     fn repr(&self) -> String {
         self.0.repr(&format!("{:}", self.0.data))
+    }
+
+    fn to_str(&self, name: &str) -> String {
+        self.0.to_str(&format!("{}", self.0.data), name)
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -1248,6 +1330,10 @@ impl FieldTrait for Fixed64Field {
         self.0.repr(&format!("{:#x}", self.0.data))
     }
 
+    fn to_str(&self, name: &str) -> String {
+        self.0.to_str(&format!("{}", self.0.data), name)
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -1284,7 +1370,6 @@ impl FieldTrait for Fixed64Field {
         }
 
         let ptr = &into[readed as usize..(readed + 8) as usize];
-        println!("Len {:?}", ptr.len());
         let value = i64::from_le_bytes([
             ptr[0], ptr[1], ptr[2], ptr[3], ptr[4], ptr[5], ptr[6], ptr[7],
         ]);
@@ -1331,6 +1416,10 @@ impl FieldTrait for SFixed64Field {
 
     fn repr(&self) -> String {
         self.0.repr(&format!("{:#x}", self.0.data))
+    }
+
+    fn to_str(&self, name: &str) -> String {
+        self.0.to_str(&format!("{}", self.0.data), name)
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -1416,6 +1505,10 @@ impl FieldTrait for DoubleField {
 
     fn repr(&self) -> String {
         self.0.repr(&format!("{:}", self.0.data))
+    }
+
+    fn to_str(&self, name: &str) -> String {
+        self.0.to_str(&format!("{}", self.0.data), name)
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -1508,6 +1601,10 @@ impl FieldTrait for StringField {
                 data_repr.add(&format!(" {:02X} ", x))
             });
         self.0.repr(&format!("{:} ({:})", &self.0.data, &data_repr))
+    }
+
+    fn to_str(&self, name: &str) -> String {
+        self.0.to_str(&format!("{}", self.0.data), name)
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -1625,6 +1722,10 @@ impl FieldTrait for BytesField {
         self.0.repr(&data_repr)
     }
 
+    fn to_str(&self, name: &str) -> String {
+        self.0.to_str(&format!("{:?}", self.0.data), name)
+    }
+
     fn serialize_into(&self, into: &mut Vec<u8>) {
         serialize_varint_into(
             generate_key(self.0.number, VariantTypeRaw::from(self.0.type_) as u8),
@@ -1715,6 +1816,10 @@ impl FieldTrait for StartGroupField {
 
     fn repr(&self) -> String {
         self.0.repr(&format!("{:#x}", self.0.data))
+    }
+
+    fn to_str(&self, name: &str) -> String {
+        self.0.to_str(&format!("{}", self.0.data), name)
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {
@@ -1832,6 +1937,31 @@ impl FieldTrait for EmbeddedField {
         };
 
         self.field.repr(&format!("Raw <{}> {}", raw, fields))
+    }
+
+    fn to_str(&self, name: &str) -> String {
+        let fields = match self.field.data.fields.len() > 0 {
+            false => "".to_string(),
+            true => format!(
+                "{:}",
+                self.field.data.fields.iter().enumerate().fold(
+                    String::new(),
+                    |data_repr, (i, x)| {
+                        data_repr.add(&format!("\n\t{}", x.to_str(&format!("param{}", i))))
+                    }
+                )
+            ),
+        };
+
+        format!(
+            "message {name} {{\n{fields}\n}}\n
+            {rule} {type} {name} = {number};",
+            number = self.field.number,
+            rule = self.field.rule,
+            type = self.field.type_.to_str(),
+            fields = fields,
+            name = name
+        )
     }
 
     fn serialize_into(&self, into: &mut Vec<u8>) {

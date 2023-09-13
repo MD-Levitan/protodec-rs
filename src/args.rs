@@ -19,12 +19,12 @@ pub fn get_config() -> Config {
                 .short("f")
                 .long("file")
                 .help("File to decode")
-                .takes_value(true)
+                .takes_value(true),
         )
         .arg(
             Arg::with_name("verbose_level")
                 .short("V")
-                .long("verobose_level")
+                .long("verbose_level")
                 .help("Verbose level")
                 .default_value("INFO"),
         )
@@ -33,7 +33,7 @@ pub fn get_config() -> Config {
                 .short("d")
                 .long("data")
                 .help("Data in hex to decode")
-                .takes_value(true)
+                .takes_value(true),
         );
     let args = app.clone().get_matches();
 
